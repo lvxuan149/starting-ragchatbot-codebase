@@ -11,6 +11,7 @@
 </head>
 <body>
     <div class="container">
+        <a href="#main-content" class="skip-link">Skip to main content</a>
         <header>
             <h1>Course Materials Assistant</h1>
             <p class="subtitle">Ask questions about courses, instructors, and content</p>
@@ -52,7 +53,7 @@
             </aside>
 
             <!-- Main Chat Area -->
-            <main class="chat-main">
+            <main class="chat-main" role="main" id="main-content">
                 <div class="chat-container">
                     <div id="chatMessages" class="chat-messages"></div>
                     <div class="chat-input-container">
@@ -61,8 +62,10 @@
                             id="chatInput" 
                             placeholder="Ask about courses, lessons, or specific content..."
                             autocomplete="off"
+                            aria-label="Chat input"
+                            maxlength="1000"
                         >
-                        <button id="sendButton">
+                        <button id="sendButton" aria-label="Send message">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="22" y1="2" x2="11" y2="13"></line>
                                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -76,6 +79,7 @@
 
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.5/purify.min.js"></script>
     <script src="script.js?v=9"></script>
 </body>
 </html>
