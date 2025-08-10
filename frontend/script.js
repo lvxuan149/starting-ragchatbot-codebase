@@ -3,6 +3,11 @@ const API_URL = '/api';
 
 // Global state
 let currentSessionId = null;
+let abortController = null;
+
+// Validation constants
+const MAX_INPUT_LENGTH = 1000;
+const MIN_INPUT_LENGTH = 1;
 
 // DOM elements
 let chatMessages, chatInput, sendButton, totalCourses, courseTitles;
@@ -29,6 +34,8 @@ function setupEventListeners() {
         if (e.key === 'Enter') sendMessage();
     });
     
+    // Setup input validation
+    setupInputValidation();
     
     // Suggested questions
     document.querySelectorAll('.suggested-item').forEach(button => {
@@ -44,7 +51,33 @@ function setupEventListeners() {
 // Chat Functions
 async function sendMessage() {
     const query = chatInput.value.trim();
-    if (!query) return;
+    
+    // Validation
+    if (!query) {
+        showError('Please enter a message');
+        return;
+    }
+    
+    if (query.length < MIN_INPUT_LENGTH) {
+        showError('Message is too short');
+        return;
+    }
+    
+    if (query.length > MAX_INPUT_LENGTH) {
+        showError(`Message is too long (max ${MAX_INPUT_LENGTH} characters)`);
+        return;
+    }
+
+    // Cancel previous request if exists
+    if (abortController) {
+        abortController.abort();
+    }
+
+    // Create new abort controller for this request
+    abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+        abortController.abort();
+    }, 10000); // 10 second timeout
 
     // Disable input
     chatInput.value = '';
@@ -68,10 +101,18 @@ async function sendMessage() {
             body: JSON.stringify({
                 query: query,
                 session_id: currentSessionId
-            })
+            }),
+            signal: abortController.signal
         });
 
-        if (!response.ok) throw new Error('Query failed');
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            if (response.status === 0) {
+                throw new Error('Request timed out. Please try again.');
+            }
+            throw new Error('Query failed');
+        }
 
         const data = await response.json();
         
@@ -85,10 +126,18 @@ async function sendMessage() {
         addMessage(data.answer, 'assistant', data.sources);
 
     } catch (error) {
+        clearTimeout(timeoutId);
+        
         // Replace loading message with error
         loadingMessage.remove();
-        addMessage(`Error: ${error.message}`, 'assistant');
+        
+        if (error.name === 'AbortError') {
+            addMessage('Request was cancelled. Please try again.', 'assistant');
+        } else {
+            addMessage(`Error: ${error.message}`, 'assistant');
+        }
     } finally {
+        abortController = null;
         chatInput.disabled = false;
         sendButton.disabled = false;
         chatInput.focus();
@@ -116,8 +165,19 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     messageDiv.className = `message ${type}${isWelcome ? ' welcome-message' : ''}`;
     messageDiv.id = `message-${messageId}`;
     
-    // Convert markdown to HTML for assistant messages
-    const displayContent = type === 'assistant' ? marked.parse(content) : escapeHtml(content);
+    // Convert markdown to HTML for assistant messages with sanitization
+    let displayContent;
+    if (type === 'assistant') {
+        // Parse markdown then sanitize
+        const rawHtml = marked.parse(content);
+        displayContent = DOMPurify.sanitize(rawHtml, {
+            ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 
+                         'u', 'ol', 'ul', 'li', 'code', 'pre', 'blockquote', 'hr'],
+            ALLOWED_ATTR: ['class']
+        });
+    } else {
+        displayContent = escapeHtml(content);
+    }
     
     let html = `<div class="message-content">${displayContent}</div>`;
     
@@ -152,15 +212,58 @@ async function createNewSession() {
     addMessage('Welcome to the Course Materials Assistant! I can help you with questions about courses, lessons and specific content. What would you like to know?', 'assistant', null, true);
 }
 
+// Helper functions
+function showError(message) {
+    // Remove existing error messages
+    const existingErrors = document.querySelectorAll('.error-message');
+    existingErrors.forEach(err => err.remove());
+    
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.textContent = message;
+    
+    // Insert after input container
+    const inputContainer = document.querySelector('.chat-input-container');
+    inputContainer.parentNode.insertBefore(errorDiv, inputContainer.nextSibling);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+        errorDiv.remove();
+    }, 5000);
+}
+
+function setupInputValidation() {
+    const charCounter = document.createElement('div');
+    charCounter.className = 'char-counter';
+    charCounter.textContent = `0 / ${MAX_INPUT_LENGTH}`;
+    charCounter.style.cssText = `
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-align: right;
+        margin-top: 0.25rem;
+    `;
+    
+    chatInput.parentNode.appendChild(charCounter);
+    
+    chatInput.addEventListener('input', (e) => {
+        const length = e.target.value.length;
+        charCounter.textContent = `${length} / ${MAX_INPUT_LENGTH}`;
+        
+        if (length > MAX_INPUT_LENGTH * 0.9) {
+            charCounter.style.color = '#f87171';
+        } else {
+            charCounter.style.color = 'var(--text-secondary)';
+        }
+    });
+}
+
 // Load course statistics
 async function loadCourseStats() {
     try {
-        console.log('Loading course stats...');
         const response = await fetch(`${API_URL}/courses`);
         if (!response.ok) throw new Error('Failed to load course stats');
         
         const data = await response.json();
-        console.log('Course data received:', data);
         
         // Update stats in UI
         if (totalCourses) {
@@ -179,7 +282,6 @@ async function loadCourseStats() {
         }
         
     } catch (error) {
-        console.error('Error loading course stats:', error);
         // Set default values on error
         if (totalCourses) {
             totalCourses.textContent = '0';
@@ -189,3 +291,11 @@ async function loadCourseStats() {
         }
     }
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    // Cancel any pending requests
+    if (abortController) {
+        abortController.abort();
+    }
+});
