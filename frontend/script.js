@@ -16,6 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
     
+    // Check if all required elements exist
+    if (!chatMessages || !chatInput || !sendButton || !totalCourses || !courseTitles) {
+        console.error('Required DOM elements not found');
+        return;
+    }
+    
     setupEventListeners();
     createNewSession();
     loadCourseStats();
@@ -44,7 +50,10 @@ function setupEventListeners() {
 // Chat Functions
 async function sendMessage() {
     const query = chatInput.value.trim();
-    if (!query) return;
+    if (!query || query.length === 0) {
+        console.warn('Empty query submitted');
+        return;
+    }
 
     // Disable input
     chatInput.value = '';
@@ -116,8 +125,8 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     messageDiv.className = `message ${type}${isWelcome ? ' welcome-message' : ''}`;
     messageDiv.id = `message-${messageId}`;
     
-    // Convert markdown to HTML for assistant messages
-    const displayContent = type === 'assistant' ? marked.parse(content) : escapeHtml(content);
+    // Convert markdown to HTML for assistant messages with sanitization
+    const displayContent = type === 'assistant' ? marked.parse(content, { sanitize: true }) : escapeHtml(content);
     
     let html = `<div class="message-content">${displayContent}</div>`;
     
@@ -125,14 +134,16 @@ function addMessage(content, type, sources = null, isWelcome = false) {
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <div class="sources-content">${escapeHtml(sources.join(', '))}</div>
             </details>
         `;
     }
     
     messageDiv.innerHTML = html;
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    if (chatMessages) {
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
     
     return messageId;
 }
@@ -155,12 +166,12 @@ async function createNewSession() {
 // Load course statistics
 async function loadCourseStats() {
     try {
-        console.log('Loading course stats...');
+        // Loading course stats...
         const response = await fetch(`${API_URL}/courses`);
         if (!response.ok) throw new Error('Failed to load course stats');
         
         const data = await response.json();
-        console.log('Course data received:', data);
+        // Course data received
         
         // Update stats in UI
         if (totalCourses) {

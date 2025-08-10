@@ -1,5 +1,6 @@
 import anthropic
 from typing import List, Optional, Dict, Any
+from search_tools import ToolManager
 
 class AIGenerator:
     """Handles interactions with Anthropic's Claude API for generating responses"""
@@ -86,7 +87,7 @@ Provide only the direct answer to what was asked.
         # Return direct response
         return response.content[0].text
     
-    def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager):
+    def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager: ToolManager):
         """
         Handle execution of tool calls and get follow-up response.
         

@@ -6,11 +6,12 @@ from ai_generator import AIGenerator
 from session_manager import SessionManager
 from search_tools import ToolManager, CourseSearchTool
 from models import Course, Lesson, CourseChunk
+from config import Config
 
 class RAGSystem:
     """Main orchestrator for the Retrieval-Augmented Generation system"""
     
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.config = config
         
         # Initialize core components
